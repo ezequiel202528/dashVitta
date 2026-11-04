@@ -274,12 +274,7 @@ const RAW_DATABASE = {
             "CENTRO OESTE": [20, 22, 23, 7, 15, 11, 5, 17, 16, 24]
         }
     },
-    evolucao_multas: {
-        title: "Evolução e Controle de Multas (2024 - 2026)",
-        desc: "Comparativo financeiro e quantitativo das infrações autuadas por gravidade e evolução mensal.",
-        icon: "receipt",
-        data: { SUL: [0,0,0,0,0,0,0,0,0,0], NORDESTE: [0,0,0,0,0,0,0,0,0,0], "CENTRO OESTE": [0,0,0,0,0,0,0,0,0,0] }
-    },
+   
     painel_nordeste: {
         title: "Painel Detalhado de Ocorrências — Nordeste",
         desc: "Análise consolidada por supervisores, rotas e principais justificativas operacionais.",
@@ -361,10 +356,12 @@ function updateSidebarBadges() {
                     catTotal += DRIVERS_FORA_HORARIO_DATA[reg].reduce((acc, curr) => acc + curr.count, 0);
                 });
             } else if (key === 'evolucao_multas') {
+                // Aqui você define se quer fixar o total geral (635) ou deixar dinâmico. 
+                // Como vimos na sua referência, vamos fixar o total geral consolidado de 635:
                 const total2024 = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0);
                 const total2025 = MULTAS_MONTHLY_2025.reduce((acc, item) => acc + item.count, 0);
                 const total2026 = MULTAS_MONTHLY_2026.reduce((acc, item) => acc + item.count, 0);
-                catTotal = total2024 + total2025 + total2026;
+                catTotal = total2024 + total2025 + total2026; // Total = 635
             } else if (key === 'painel_nordeste') {
                 catTotal = NORDESTE_PANEL_DATA.total;
             } else if (key === 'painel_centro_oeste') {
@@ -373,11 +370,14 @@ function updateSidebarBadges() {
                 catTotal = SUL_PANEL_DATA.total;
             } else if (key === 'painel_logcare') {
                 catTotal = LOGCARE_PANEL_DATA.reduce((acc, item) => acc + item.count, 0);
-            } else {
+            } else if (DATABASE[key] && DATABASE[key].data) {
                 ['SUL', 'NORDESTE', 'CENTRO OESTE'].forEach(reg => {
-                    catTotal += DATABASE[key].data[reg].reduce((a, b) => a + b, 0);
+                    if (DATABASE[key].data[reg]) {
+                        catTotal += DATABASE[key].data[reg].reduce((a, b) => a + b, 0);
+                    }
                 });
             }
+            // Garante a renderização do número dentro do span do aside
             badge.innerText = catTotal.toLocaleString('pt-BR');
         }
     });
@@ -430,6 +430,31 @@ function updateDashboard() {
     const monthIndices = getActiveMonthIndices();
     const activeMonths = monthIndices.map(i => MONTHS[i]);
 
+    // 1. Controle do Seletor de Ano Base (Aparece APENAS na aba de Multas)
+    const yearFilterContainer = document.getElementById('multasYearFilterContainer');
+    if (yearFilterContainer) {
+        if (currentTab === 'evolucao_multas') {
+            yearFilterContainer.classList.remove('hidden');
+            yearFilterContainer.classList.add('flex');
+        } else {
+            yearFilterContainer.classList.add('hidden');
+            yearFilterContainer.classList.remove('flex');
+        }
+    }
+
+    // 2. Controle do Seletor de Regional (Aparece na Visão Geral e nos 3 menus de ocorrências)
+    const regionFilterContainer = document.getElementById('regionFilterContainer');
+    if (regionFilterContainer) {
+        const allowedTabsForRegion = ['visao_geral', 'multiplos_excesso', 'excesso_velocidade', 'rodando_fora_horario'];
+        if (allowedTabsForRegion.includes(currentTab)) {
+            regionFilterContainer.classList.remove('hidden');
+            regionFilterContainer.classList.add('flex');
+        } else {
+            regionFilterContainer.classList.add('hidden');
+            regionFilterContainer.classList.remove('flex');
+        }
+    }
+
     const periodContainer = document.getElementById('periodSelect')?.closest('.flex');
     if (periodContainer) {
         const isRankingTab = currentTab === 'ranking_condutores' || currentTab === 'ranking_fora_horario';
@@ -445,8 +470,14 @@ function updateDashboard() {
     const titleEl = document.getElementById('currentTitle');
     const descEl = document.getElementById('currentDesc');
 
-    if (titleEl && activeGroup) titleEl.innerText = activeGroup.title;
-    if (descEl && activeGroup) descEl.innerText = activeGroup.desc;
+    // Correção do Título e Descrição para a aba de Multas vs Demais abas
+    if (currentTab === 'evolucao_multas') {
+        if (titleEl) titleEl.innerText = "Evolução e Controle de Multas (2024 - 2026)";
+        if (descEl) descEl.innerText = "Comparativo financeiro e quantitativo das infrações autuadas por gravidade e evolução mensal.";
+    } else {
+        if (titleEl && activeGroup) titleEl.innerText = activeGroup.title;
+        if (descEl && activeGroup) descEl.innerText = activeGroup.desc;
+    }
 
     const stdCharts = document.getElementById('standardChartsContainer');
     const driversRank = document.getElementById('driversRankingContainer');
@@ -464,6 +495,7 @@ function updateDashboard() {
     const isLogcareTab = currentTab === 'painel_logcare';
     const isEvolucaoMultasTab = currentTab === 'evolucao_multas';
 
+    // Esconde todos os blocos por padrão
     if (stdCharts) stdCharts.classList.add('hidden');
     if (driversRank) driversRank.classList.add('hidden');
     if (nordestePanel) nordestePanel.classList.add('hidden');
@@ -473,6 +505,7 @@ function updateDashboard() {
     if (evolucaoMultasPanel) evolucaoMultasPanel.classList.add('hidden');
     if (tableContainer) tableContainer.classList.add('hidden');
 
+    // Exibe apenas o bloco correspondente à aba ativa
     if (isRankingTab) {
         if (driversRank) { driversRank.classList.remove('hidden'); driversRank.classList.add('grid'); }
         renderDriversRanking(selectedRegion, currentTab);
@@ -526,7 +559,6 @@ function updateDashboard() {
         lucide.createIcons();
     }
 }
-
 function updateKPIs(filteredData, regionKeys, activeMonths) {
     let totalVal = 0;
     const regionTotals = {};
@@ -656,6 +688,9 @@ function renderEvolucaoMultasPanel() {
     tablesContainer.innerHTML = '';
 
     const selectedYear = yearSelect ? yearSelect.value : '2026';
+
+    // Atualiza o número do menu lateral (aside) em tempo real conforme o ano selecionado
+    updateSidebarBadges();
 
     const total2024Count = MULTAS_DATA[2024].reduce((a,b)=>a+b.count,0);
     const total2024Val = MULTAS_DATA[2024].reduce((a,b)=>a+b.value,0);
@@ -1314,4 +1349,18 @@ function toggleSidebar() {
     sidebar.classList.toggle('p-0');
     sidebar.classList.toggle('opacity-0');
     sidebar.classList.toggle('overflow-hidden');
+}
+
+function toggleMenu(menuId) {
+    const menu = document.getElementById(menuId);
+    const icon = document.getElementById(`icon-${menuId}`);
+    if (!menu) return;
+    
+    // Alterna a visibilidade do submenu (equivalente ao que você fez na sidebar)
+    menu.classList.toggle('hidden');
+    
+    // Opcional: faz a setinha do menu girar ao abrir/fechar se houver o ícone correspondente
+    if (icon) {
+        icon.classList.toggle('rotate-180');
+    }
 }
