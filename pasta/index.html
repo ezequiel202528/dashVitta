@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vitta Inteligência Logística — Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              slate: {
+                850: "#1e293b",
+                900: "#0f172a",
+                950: "#0b0f19",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body
+    class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white"
+  >
+    <!-- HEADER SUPERIOR COM O BOTÃO NO CANTO SUPERIOR ESQUERDO -->
+    <header
+      class="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-slate-800 sticky top-0 z-30"
+    >
+      <!-- Lado Esquerdo: Botão Hambúrguer + Logo Vitta -->
+      <div class="flex items-center gap-4">
+        <button
+          onclick="toggleSidebar()"
+          class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors shadow-sm focus:outline-none"
+        >
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+        <div class="flex items-center gap-2">
+          <span class="text-xl font-extrabold tracking-wider italic text-white"
+            >Vitta
+            <span
+              class="text-xs font-normal text-slate-400 not-italic block uppercase tracking-widest"
+              >Inteligência Logística - Centro de controle Operacional</span
+            ></span
+          >
+        </div>
+      </div>
+
+      <!-- Lado Direito: Seletor de Regional + Período -->
+      <div class="flex items-center gap-4">
+        <div
+          id="regionFilterContainer"
+          class="hidden items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800"
+        >
+          <i data-lucide="map-pin" class="w-4 h-4 text-blue-400"></i>
+          <span class="text-xs text-slate-400 font-medium">Regional:</span>
+          <select
+            id="regionSelect"
+            onchange="handleFilterChange()"
+            class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer [&>option]:bg-slate-950 [&>option]:text-white"
+          >
+            <option value="TODAS">Todas as Regionais (SUL / NE / CO)</option>
+            <option value="SUL">SUL</option>
+            <option value="NORDESTE">NORDESTE</option>
+            <option value="CENTRO OESTE">CENTRO OESTE</option>
+          </select>
+        </div>
+
+ 
+      </div>
+    </header>
+
+    <!-- CORPO PRINCIPAL COM SIDEBAR E CONTEÚDO -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- ASIDE / BARRA LATERAL -->
+      <aside
+        id="sidebar"
+        class="transition-transform duration-300 ease-in-out w-64 bg-slate-950 border-r border-slate-800 p-4 overflow-y-auto shrink-0 absolute lg:static z-20 h-[calc(100vh-73px)] lg:h-auto translate-x-0"
+      >
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-2xl p-3 shadow-sm"
+        >
+          <div
+            class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between"
+          >
+            <span>Dashboard</span>
+            <i data-lucide="layers" class="w-3.5 h-3.5 text-slate-500"></i>
+          </div>
+          <nav class="mt-2 space-y-2">
+            <!-- GRUPO 1: Ocorrências Gestor Vitta (Expansível) -->
+            <div>
+              <button
+                onclick="toggleMenu('submenu-vitta')"
+                class="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-200 transition-colors"
+              >
+                <span class="flex items-center gap-1.5"
+                  ><i
+                    data-lucide="shield-alert"
+                    class="w-3.5 h-3.5 text-blue-400"
+                  ></i>
+                  Ocorrências</span
+                >
+                <i
+                  id="icon-submenu-vitta"
+                  data-lucide="chevron-down"
+                  class="w-3.5 h-3.5 transition-transform duration-200"
+                ></i>
+              </button>
+              <div
+                id="submenu-vitta"
+                class="hidden mt-1 space-y-1 pl-2 border-l border-slate-800/80 ml-2"
+              >
+                <button
+                  id="nav-multiplos_excesso"
+                  onclick="switchTab('multiplos_excesso')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Múltiplos Excessos</span>
+                
+                  
+                </button>
+
+                <button
+                  id="nav-excesso_velocidade"
+                  onclick="switchTab('excesso_velocidade')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Excessos de Velocidade</span>
+                 
+                </button>
+
+                <button
+                  id="nav-rodando_fora_horario"
+                  onclick="switchTab('rodando_fora_horario')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Rodando Fora de Horário</span>
+                  
+                  
+                </button>
+
+                <button
+                  id="nav-evolucao_multas"
+                  onclick="switchTab('evolucao_multas')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Evolução de Multas</span>
+                  
+                </button>
+              </div>
+            </div>
+
+            <div class="border-t border-slate-800/80 my-2"></div>
+
+            <!-- GRUPO 2: LogCare (Expansível) -->
+            <div>
+              <button
+                onclick="toggleMenu('submenu-logcare')"
+                class="w-full flex items-center justify-between px-3 py-2 text-[11px] font-semibold text-emerald-400 uppercase tracking-wider hover:text-emerald-300 transition-colors"
+              >
+                <span class="flex items-center gap-1.5"
+                  ><i
+                    data-lucide="cpu"
+                    class="w-3.5 h-3.5 text-emerald-400"
+                  ></i>
+                  LogCare</span
+                >
+                <i
+                  id="icon-submenu-logcare"
+                  data-lucide="chevron-down"
+                  class="w-3.5 h-3.5 transition-transform duration-200"
+                ></i>
+              </button>
+              <div
+                id="submenu-logcare"
+                class="hidden mt-1 space-y-1 pl-2 border-l border-slate-800/80 ml-2"
+              >
+                <button
+                  id="nav-painel_nordeste"
+                  onclick="switchTab('painel_nordeste')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Painel Nordeste</span>
+                 
+                </button>
+
+                <button
+                  id="nav-painel_centro_oeste"
+                  onclick="switchTab('painel_centro_oeste')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Painel Centro Oeste</span>
+                 
+                </button>
+
+                <button
+                  id="nav-painel_sul"
+                  onclick="switchTab('painel_sul')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">Painel Sul</span>
+                 
+                </button>
+
+                <button
+                  id="nav-painel_logcare"
+                  onclick="switchTab('painel_logcare')"
+                  class="nav-btn w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 text-left"
+                >
+                  <span class="truncate">LogCare Operação</span>
+                  
+                </button>
+              </div>
+            </div>
+          </nav>
+        </div>
+      </aside>
+
+      <!-- CONTEÚDO PRINCIPAL DO DASHBOARD -->
+      <main class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-950">
+        <!-- TOPO DINÂMICO (Com o padrão avançado do beckup8 para multas) -->
+        <div
+          class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+        >
+          <div>
+            <h1 id="currentTitle" class="text-2xl font-extrabold text-white">
+              Carregando...
+            </h1>
+            <p id="currentDesc" class="text-sm text-slate-400 mt-1">
+              Aguarde enquanto os dados são processados.
+            </p>
+          </div>
+
+          <!-- Seletor de Ano Base + Contador Dinâmico -->
+          <div id="multasYearFilterContainer" class="hidden items-center gap-3">
+            <div
+              class="bg-slate-950 px-3 py-2 rounded-xl border border-slate-800 flex items-center gap-2"
+            >
+              <span class="text-xs text-slate-400 font-medium">Total:</span>
+              <span
+                id="multasHeaderCount"
+                class="text-xs font-extrabold text-blue-400"
+                >0 Infrações</span
+              >
+            </div>
+
+            <div
+              class="flex items-center gap-2 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800"
+            >
+              <i data-lucide="calendar" class="w-4 h-4 text-purple-400"></i>
+              <span class="text-xs text-slate-400 font-medium">Ano Base:</span>
+             <select
+  id="multasYearSelect"
+  onchange="
+    renderEvolucaoMultasPanel();
+    updateSidebarBadges();
+  "
+  class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer [&>option]:bg-slate-950 [&>option]:text-white"
+>
+  <option value="2024" selected>Exercício 2024</option>
+  <option value="2025">Exercício 2025</option>
+  <option value="2026">Exercício 2026</option>
+  <option value="TODAS">Consolidado Geral (24-26)</option>
+</select>
+            </div>
+          </div>
+        </div>
+
+        <!-- KPIs GERAIS -->
+    <div id="generalKpisContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center text-slate-400 text-xs font-bold uppercase"
+            >
+              <span>Total do Período</span>
+              <i data-lucide="activity" class="w-4 h-4 text-blue-400"></i>
+            </div>
+            <div id="kpi-total" class="text-3xl font-extrabold text-white mt-3">
+              0
+            </div>
+            <div class="text-xs text-slate-400 mt-1">
+              Soma de ocorrências ativas
+            </div>
+          </div>
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center text-slate-400 text-xs font-bold uppercase"
+            >
+              <span>Regional Crítica</span>
+              <i data-lucide="alert-circle" class="w-4 h-4 text-rose-400"></i>
+            </div>
+            <div
+              id="kpi-highest"
+              class="text-3xl font-extrabold text-white mt-3"
+            >
+              -
+            </div>
+            <div
+              id="kpi-highest-val"
+              class="text-xs text-rose-400 font-semibold mt-1"
+            >
+              0 ev.
+            </div>
+          </div>
+        </div>
+
+        <!-- CONTAINER DINÂMICO DE GRÁFICOS / PAINÉIS NORMAIS -->
+        <div
+          id="standardChartsContainer"
+          class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+        >
+          <div
+            class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm"
+          >
+            <h3 class="font-bold text-slate-200 text-sm mb-4">
+              Evolução Mensal Comparativa por Regional
+            </h3>
+            <div class="h-72"><canvas id="evolutionChart"></canvas></div>
+          </div>
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col justify-between"
+          >
+            <h3 class="font-bold text-slate-200 text-sm mb-4">
+              Distribuição Porcentual
+            </h3>
+            <div class="h-60 relative flex items-center justify-center">
+              <canvas id="distributionChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL EXCLUSIVO DE EVOLUÇÃO DE MULTAS (VINDO DO BECKUP8) -->
+        <div id="evolucaoMultasContainer" class="hidden space-y-6">
+          <div id="multasTopGrid" class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div
+              id="multasImpactCard"
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between border-l-4 border-l-blue-500 transition-all duration-300"
+            >
+              <div class="flex justify-between items-center">
+                <span
+                  id="multasImpactTitle"
+                  class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                  >Impacto Financeiro Total</span
+                >
+                <i
+                  data-lucide="dollar-sign"
+                  class="w-4 h-4 text-emerald-400"
+                ></i>
+              </div>
+              <div class="my-3">
+                <span
+                  id="multasMainValue"
+                  class="text-3xl font-extrabold text-white"
+                  >R$ 0,00</span
+                >
+              </div>
+              <div
+                class="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-800/80"
+              >
+                <span id="multasImpactSubtext">Total a Pagar no Período</span>
+                <span id="multasMainCount" class="font-bold text-blue-400"
+                  >0 Infrações</span
+                >
+              </div>
+            </div>
+
+            <div
+              id="distributionGravidadeContainer"
+              class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between"
+            >
+              <div class="flex justify-between items-center mb-3">
+                <span
+                  class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+                  >Distribuição por Gravidade (Qtd / Valor)</span
+                >
+                <i data-lucide="pie-chart" class="w-4 h-4 text-purple-400"></i>
+              </div>
+              <div
+                id="multasCardsContainer"
+                class="grid grid-cols-2 sm:grid-cols-4 gap-3"
+              ></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-400"></i>
+                Multas por Mês (Quantidade)
+              </h3>
+              <div class="h-64"><canvas id="multasCountChart"></canvas></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i
+                  data-lucide="dollar-sign"
+                  class="w-4 h-4 text-emerald-400"
+                ></i>
+                Valor das Multas por Mês (R$)
+              </h3>
+              <div class="h-64"><canvas id="multasValueChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RANKING DE CONDUTORES -->
+        <div
+          id="driversRankingContainer"
+          class="hidden grid-cols-1 lg:grid-cols-3 gap-6"
+        >
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800"
+            >
+              <h4 class="font-bold text-sm text-slate-200">Centro Oeste</h4>
+              <span
+                id="card-total-co"
+                class="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20"
+                >Total: 0</span
+              >
+            </div>
+            <div id="drivers-co" class="space-y-3"></div>
+          </div>
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800"
+            >
+              <h4 class="font-bold text-sm text-slate-200">Nordeste</h4>
+              <span
+                id="card-total-ne"
+                class="text-xs font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20"
+                >Total: 0</span
+              >
+            </div>
+            <div id="drivers-ne" class="space-y-3"></div>
+          </div>
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center mb-4 pb-2 border-b border-slate-800"
+            >
+              <h4 class="font-bold text-sm text-slate-200">Sul</h4>
+              <span
+                id="card-total-sul"
+                class="text-xs font-bold text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20"
+                >Total: 0</span
+              >
+            </div>
+            <div id="drivers-sul" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <!-- PAINEL DETALHADO — NORDESTE -->
+        <div id="nordestePanelContainer" class="hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="users" class="w-4 h-4 text-amber-400"></i>
+                Supervisores (Nordeste)
+              </h3>
+              <div id="supervisors-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="map" class="w-4 h-4 text-amber-400"></i>
+                Principais Rotas Críticas
+              </h3>
+              <div id="routes-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="file-text" class="w-4 h-4 text-amber-400"></i>
+                Principais Justificativas
+              </h3>
+              <div id="justifications-list" class="space-y-2.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL DETALHADO — CENTRO OESTE -->
+        <div id="centroOestePanelContainer" class="hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="users" class="w-4 h-4 text-emerald-400"></i>
+                Supervisores (Centro Oeste)
+              </h3>
+              <div id="co-supervisors-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="map" class="w-4 h-4 text-emerald-400"></i>
+                Principais Rotas Críticas
+              </h3>
+              <div id="co-routes-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="file-text" class="w-4 h-4 text-emerald-400"></i>
+                Principais Justificativas
+              </h3>
+              <div id="co-justifications-list" class="space-y-2.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL DETALHADO — SUL -->
+        <div id="sulPanelContainer" class="hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+                Supervisores (Sul)
+              </h3>
+              <div id="sul-supervisors-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="map" class="w-4 h-4 text-blue-400"></i>
+                Principais Rotas Críticas
+              </h3>
+              <div id="sul-routes-list" class="space-y-2.5"></div>
+            </div>
+            <div
+              class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm"
+            >
+              <h3
+                class="font-bold text-slate-200 text-sm mb-4 flex items-center gap-2"
+              >
+                <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i>
+                Principais Justificativas
+              </h3>
+              <div id="sul-justifications-list" class="space-y-2.5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PAINEL LOGCARE & OPERAÇÃO -->
+        <div id="logcarePanelContainer" class="hidden space-y-6">
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm"
+          >
+            <div
+              class="flex justify-between items-center mb-6 pb-3 border-b border-slate-800"
+            >
+              <div>
+                <h3 class="font-bold text-white text-base">
+                  Ocorrências Operacionais de Viagem (LogCare)
+                </h3>
+                <p class="text-xs text-slate-400">
+                  Monitoramento consolidado de atrasos e desvios de programação
+                </p>
+              </div>
+              <span
+                id="logcare-total-badge"
+                class="text-xs font-extrabold text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20"
+                >Total: 0</span
+              >
+            </div>
+            <div
+              id="logcare-list"
+              class="grid grid-cols-1 md:grid-cols-2 gap-4"
+            ></div>
+          </div>
+        </div>
+
+        <!-- TABELA GERAL -->
+        <div
+          id="tableContainer"
+          class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm"
+        >
+          <div
+            class="p-5 border-b border-slate-800 flex justify-between items-center"
+          >
+            <h3 class="font-bold text-slate-200 text-sm">
+              Detalhamento Mensal por Regional
+            </h3>
+            <span class="text-xs text-slate-400"
+              >Valores absolutos contabilizados mês a mês no período
+              selecionado</span
+            >
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead
+                class="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase text-[10px]"
+              >
+                <tr>
+                  <th class="py-3 px-4">Regional</th>
+                  <th class="py-3 px-2 text-center">Jan</th>
+                  <th class="py-3 px-2 text-center">Fev</th>
+                  <th class="py-3 px-2 text-center">Mar</th>
+                  <th class="py-3 px-2 text-center">Abr</th>
+                  <th class="py-3 px-2 text-center">Mai</th>
+                  <th class="py-3 px-2 text-center">Jun</th>
+                  <th class="py-3 px-2 text-center">Jul</th>
+                  <th class="py-3 px-2 text-center">Ago</th>
+                  <th class="py-3 px-2 text-center">Set</th>
+                  <th class="py-3 px-2 text-center">Out</th>
+                  <th class="py-3 px-4 text-right">Total Acumulado</th>
+                  <th class="py-3 px-4 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody
+                id="tableBody"
+                class="divide-y divide-slate-800/60 font-medium text-slate-300"
+              ></tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Script principal (Ajuste para o seu arquivo JS final) -->
+    <script src="beckup.js"></script>
+  </body>
+</html>

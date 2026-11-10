@@ -256,19 +256,19 @@
             >
               <i data-lucide="calendar" class="w-4 h-4 text-purple-400"></i>
               <span class="text-xs text-slate-400 font-medium">Ano Base:</span>
-              <select
-                id="multasYearSelect"
-                onchange="
-                  renderEvolucaoMultasPanel();
-                  updateSidebarBadges();
-                "
-                class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer [&>option]:bg-slate-950 [&>option]:text-white"
-              >
-                <option value="2026">Exercício 2026</option>
-                <option value="2025">Exercício 2025</option>
-                <option value="2024">Exercício 2024</option>
-                <option value="TODAS">Consolidado Geral (24-26)</option>
-              </select>
+             <select
+  id="multasYearSelect"
+  onchange="
+    renderEvolucaoMultasPanel();
+    updateSidebarBadges();
+  "
+  class="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer [&>option]:bg-slate-950 [&>option]:text-white"
+>
+  <option value="2024" selected>Exercício 2024</option>
+  <option value="2025">Exercício 2025</option>
+  <option value="2026">Exercício 2026</option>
+  <option value="TODAS">Consolidado Geral (24-26)</option>
+</select>
             </div>
           </div>
         </div>

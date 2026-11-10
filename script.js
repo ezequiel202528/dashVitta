@@ -5,7 +5,7 @@ const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', '
 // ==========================================
 const GOOGLE_SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQAuQcgKhR4Kcb--r9cxLjFZ3Z3mYdOyx_uMSaEoZBGKHPx7fjWEze26FcRKiA48joDCkW0Ntj7Beu8/pub?output=csv";
 
-let MULTAS_DATA = { 2024: [], 2025: [], 2026: [] };
+let MULTAS_DATA = { 2024: {}, 2025: {}, 2026: {} };
 let MULTAS_MONTHLY_2024 = Array(12).fill(0).map(() => ({ count: 0, value: 0 }));
 let MULTAS_MONTHLY_2025 = Array(12).fill(0).map(() => ({ count: 0, value: 0 }));
 let MULTAS_MONTHLY_2026 = Array(12).fill(0).map(() => ({ count: 0, value: 0 }));
@@ -27,7 +27,8 @@ async function carregarDadosDoGoogleSheets() {
 
 function processarCSVMultas(csv) {
     const linhas = csv.split("\n");
-    let tempMultasPorAnoGravidade = {
+    
+    let tempGravidades = {
         2024: { Leve: { count: 0, value: 0 }, Média: { count: 0, value: 0 }, Grave: { count: 0, value: 0 }, Gravíssima: { count: 0, value: 0 } },
         2025: { Leve: { count: 0, value: 0 }, Média: { count: 0, value: 0 }, Grave: { count: 0, value: 0 }, Gravíssima: { count: 0, value: 0 } },
         2026: { Leve: { count: 0, value: 0 }, Média: { count: 0, value: 0 }, Grave: { count: 0, value: 0 }, Gravíssima: { count: 0, value: 0 } }
@@ -41,97 +42,89 @@ function processarCSVMultas(csv) {
         const linha = linhas[i].trim();
         if (!linha) continue;
         const lUp = linha.toUpperCase();
-        if (lUp.includes("SUPERVISOR") && lUp.includes("VALOR")) continue;
+        
+        // Pula o cabeçalho da tabela
+        if (lUp.includes("SUPERVISOR") && (lUp.includes("VALOR") || lUp.includes("MÊS"))) continue;
 
-        const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+        const colunas = linha.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(c => c.replace(/"/g, "").trim());
         if (colunas.length < 5) continue;
 
+        // Estrutura das Colunas:
+        // Coluna 0 (A): SUPERVISOR
+        // Coluna 1 (B): MÊS
+        // Coluna 2 (C): DATA DA INFRAÇÃO (Utilizada para extração exata do mês e ano)
+        // Coluna 3 (D): VALOR
+        // Coluna 4 (E): INFRAÇÃO / Gravidade
+
+        const dataStr = colunas[2];
+        const valorStr = colunas[3];
+        const infracaoStr = colunas[4] || "Média";
+
         let ano = 0;
-        if (colunas.length >= 23 && colunas[22]) {
-            let anoAux = parseInt(colunas[22].replace(/"/g, "").trim());
-            if ([2024, 2025, 2026].includes(anoAux)) ano = anoAux;
+        let mesIdx = -1;
+
+        if (dataStr) {
+            if (dataStr.includes("-")) {
+                const partes = dataStr.split(/[-/]/);
+                if (partes.length >= 3 && partes[0].length === 4) {
+                    ano = parseInt(partes[0]);
+                    mesIdx = parseInt(partes[1]) - 1;
+                }
+            } else if (dataStr.includes("/")) {
+                const partes = dataStr.split("/");
+                if (partes.length === 3) {
+                    mesIdx = parseInt(partes[1]) - 1;
+                    ano = parseInt(partes[2]);
+                }
+            }
         }
-        if (ano === 0) {
-            if (linha.includes("2024") && !linha.includes("2025") && !linha.includes("2026")) ano = 2024;
+
+        if (![2024, 2025, 2026].includes(ano)) {
+            if (linha.includes("2024")) ano = 2024;
             else if (linha.includes("2025")) ano = 2025;
             else if (linha.includes("2026")) ano = 2026;
+            else continue;
         }
-        if (![2024, 2025, 2026].includes(ano)) continue;
 
-        let valorStr = "0";
-        if (colunas.length >= 10 && colunas[9] && colunas[9].replace(/"/g, "").trim() !== "") {
-            valorStr = colunas[9];
-        } else {
-            colunas.forEach(col => {
-                const val = col.replace(/"/g, "").trim();
-                if (val.includes("R$") || /^\d+[\.,]\d{2}$/.test(val)) valorStr = val;
-            });
-        }
+        if (mesIdx < 0 || mesIdx > 11) continue;
+
+        // Conversão limpa do valor monetário
         const valorLimpo = valorStr.replace("R$", "").replace(/\./g, "").replace(",", ".").trim();
         const valorNum = parseFloat(valorLimpo) || 0;
 
+        // Normalização da Infração / Gravidade
         let gravidadeNorm = "Média";
-        let gravidadeEncontrada = false;
-        colunas.forEach(col => {
-            const cUp = col.replace(/"/g, "").trim().toUpperCase();
-            if (!gravidadeEncontrada) {
-                if (cUp === "LEVE") { gravidadeNorm = "Leve"; gravidadeEncontrada = true; }
-                else if (cUp === "GRAVÍSSIMA" || cUp === "GRAVISSIMA") { gravidadeNorm = "Gravíssima"; gravidadeEncontrada = true; }
-                else if (cUp === "GRAVE") { gravidadeNorm = "Grave"; gravidadeEncontrada = true; }
-                else if (cUp === "MÉDIA" || cUp === "MEDIA") { gravidadeNorm = "Média"; gravidadeEncontrada = true; }
-            }
-        });
+        const gUp = infracaoStr.toUpperCase();
+        if (gUp.includes("LEVE")) gravidadeNorm = "Leve";
+        else if (gUp.includes("GRAVISSIMA") || gUp.includes("GRAVÍSSIMA")) gravidadeNorm = "Gravíssima";
+        else if (gUp.includes("GRAVE")) gravidadeNorm = "Grave";
+        else if (gUp.includes("MEDIA") || gUp.includes("MÉDIA")) gravidadeNorm = "Média";
 
-        if (tempMultasPorAnoGravidade[ano] && tempMultasPorAnoGravidade[ano][gravidadeNorm]) {
-            tempMultasPorAnoGravidade[ano][gravidadeNorm].count += 1;
-            tempMultasPorAnoGravidade[ano][gravidadeNorm].value += valorNum;
+        if (tempGravidades[ano] && tempGravidades[ano][gravidadeNorm]) {
+            tempGravidades[ano][gravidadeNorm].count += 1;
+            tempGravidades[ano][gravidadeNorm].value += valorNum;
         }
 
-        let mesIdx = -1;
-        if (colunas.length >= 24 && colunas[23]) {
-            let mesAux = parseInt(colunas[23].replace(/"/g, "").trim());
-            if (!isNaN(mesAux) && mesAux >= 1 && mesAux <= 12) mesIdx = mesAux - 1;
-        }
-        if (mesIdx === -1) {
-            colunas.forEach(col => {
-                const val = col.replace(/"/g, "").trim();
-                if (/^\d{4}-\d{2}-\d{2}$/.test(val) || /^\d{2}\/\d{2}\/\d{4}$/.test(val)) {
-                    const partes = val.includes("-") ? val.split("-") : val.split("/");
-                    if (partes.length >= 2) {
-                        let m = parseInt(partes[1]) - 1;
-                        if (m >= 0 && m <= 11 && mesIdx === -1) mesIdx = m;
-                    }
-                }
-            });
-        }
-        if (mesIdx === -1) {
-            if (lUp.includes("JAN")) mesIdx = 0;
-            else if (lUp.includes("FEV")) mesIdx = 1;
-            else if (lUp.includes("MAR")) mesIdx = 2;
-            else if (lUp.includes("ABR")) mesIdx = 3;
-            else if (lUp.includes("MAI")) mesIdx = 4;
-            else if (lUp.includes("JUN")) mesIdx = 5;
-            else if (lUp.includes("JUL")) mesIdx = 6;
-            else if (lUp.includes("AGO")) mesIdx = 7;
-            else if (lUp.includes("SET")) mesIdx = 8;
-            else if (lUp.includes("OUT")) mesIdx = 9;
-            else if (lUp.includes("NOV")) mesIdx = 10;
-            else if (lUp.includes("DEZ")) mesIdx = 11;
-        }
-
-        if (mesIdx >= 0 && mesIdx <= 11) {
-            if (ano === 2024) { MULTAS_MONTHLY_2024[mesIdx].count += 1; MULTAS_MONTHLY_2024[mesIdx].value += valorNum; }
-            else if (ano === 2025) { MULTAS_MONTHLY_2025[mesIdx].count += 1; MULTAS_MONTHLY_2025[mesIdx].value += valorNum; }
-            else if (ano === 2026) { MULTAS_MONTHLY_2026[mesIdx].count += 1; MULTAS_MONTHLY_2026[mesIdx].value += valorNum; }
+        if (ano === 2024) {
+            MULTAS_MONTHLY_2024[mesIdx].count += 1;
+            MULTAS_MONTHLY_2024[mesIdx].value += valorNum;
+        } else if (ano === 2025) {
+            MULTAS_MONTHLY_2025[mesIdx].count += 1;
+            MULTAS_MONTHLY_2025[mesIdx].value += valorNum;
+        } else if (ano === 2026) {
+            MULTAS_MONTHLY_2026[mesIdx].count += 1;
+            MULTAS_MONTHLY_2026[mesIdx].value += valorNum;
         }
     }
 
     [2024, 2025, 2026].forEach((yr) => {
-        MULTAS_DATA[yr] = Object.keys(tempMultasPorAnoGravidade[yr]).map((grav) => ({
-            gravidade: grav,
-            count: tempMultasPorAnoGravidade[yr][grav].count,
-            value: tempMultasPorAnoGravidade[yr][grav].value,
-        }));
+        if (tempGravidades[yr]) {
+            MULTAS_DATA[yr] = Object.keys(tempGravidades[yr]).map((grav) => ({
+                gravidade: grav,
+                count: tempGravidades[yr][grav].count,
+                value: tempGravidades[yr][grav].value,
+            }));
+        }
     });
 }
 
@@ -234,9 +227,9 @@ const RAW_DATABASE = {
         desc: "Ocorrências reincidentes de alta velocidade registradas pelo mesmo veículo em sequência.",
         icon: "zap",
         data: {
-            SUL:            [5, 2, 4, 1, 4, 0, 2, 0, 4, 0],
-            NORDESTE:       [1, 0, 2, 1, 0, 0, 2, 0, 1, 0],
-            "CENTRO OESTE": [2, 1, 0, 0, 1, 1, 4, 2, 3, 1]
+            SUL:            [5, 2, 4, 1, 4, 0, 2, 0, 4, 0, 0, 0],
+            NORDESTE:       [1, 0, 2, 1, 0, 0, 2, 0, 1, 0, 0, 0],
+            "CENTRO OESTE": [2, 1, 0, 0, 1, 1, 4, 2, 3, 1, 0, 0]
         }
     },
     excesso_velocidade: {
@@ -244,9 +237,9 @@ const RAW_DATABASE = {
         desc: "Eventos individuais de transposição dos limites de velocidade configurados na telemetria.",
         icon: "gauge",
         data: {
-            SUL:            [15, 13, 23, 16, 9, 17, 24, 13, 10, 1],
-            NORDESTE:       [6, 2, 8, 5, 3, 12, 12, 3, 7, 5],
-            "CENTRO OESTE": [8, 10, 5, 4, 13, 9, 11, 8, 8, 6]
+            SUL:            [15, 13, 23, 16, 9, 17, 24, 13, 10, 1, 0, 0],
+            NORDESTE:       [6, 2, 8, 5, 3, 12, 12, 3, 7, 5, 0, 0],
+            "CENTRO OESTE": [8, 10, 5, 4, 13, 9, 11, 8, 8, 6, 0, 0]
         }
     },
     rodando_fora_horario: {
@@ -254,34 +247,34 @@ const RAW_DATABASE = {
         desc: "Utilização do veículo fora da janela de operação autorizada ou jornadas estendidas.",
         icon: "clock",
         data: {
-            SUL:            [27, 34, 23, 29, 23, 18, 21, 16, 24, 58],
-            NORDESTE:       [9, 9, 15, 8, 16, 14, 15, 5, 17, 26],
-            "CENTRO OESTE": [20, 22, 23, 7, 15, 11, 5, 17, 16, 27]
+            SUL:            [27, 34, 23, 29, 23, 18, 21, 16, 24, 58, 0, 0],
+            NORDESTE:       [9, 9, 15, 8, 16, 14, 15, 5, 17, 26, 0, 0],
+            "CENTRO OESTE": [20, 22, 23, 7, 15, 11, 5, 17, 16, 27, 0, 0]
         }
     },
     painel_nordeste: {
         title: "Painel Detalhado de Ocorrências — Nordeste",
         desc: "Análise consolidada por supervisores, rotas e principais justificativas operacionais.",
         icon: "bar-chart-2",
-        data: { SUL: [0,0,0,0,0,0,0,0,0,0], NORDESTE: [210, 220, 260, 240, 270, 250, 280, 240, 260, 267], "CENTRO OESTE": [0,0,0,0,0,0,0,0,0,0] }
+        data: { SUL: Array(12).fill(0), NORDESTE: [210, 220, 260, 240, 270, 250, 280, 240, 260, 267, 0, 0], "CENTRO OESTE": Array(12).fill(0) }
     },
     painel_centro_oeste: {
         title: "Painel Detalhado de Ocorrências — Centro Oeste",
         desc: "Análise consolidada por supervisores, rotas críticas e principais justificativas na regional Centro Oeste.",
         icon: "bar-chart-3",
-        data: { SUL: [0,0,0,0,0,0,0,0,0,0], NORDESTE: [0,0,0,0,0,0,0,0,0,0], "CENTRO OESTE": [90, 105, 115, 100, 120, 110, 125, 110, 112, 112] }
+        data: { SUL: Array(12).fill(0), NORDESTE: Array(12).fill(0), "CENTRO OESTE": [90, 105, 115, 100, 120, 110, 125, 110, 112, 112, 0, 0] }
     },
     painel_sul: {
         title: "Painel Detalhado de Ocorrências — Sul",
         desc: "Análise consolidada por supervisores, rotas críticas e principais justificativas na regional Sul.",
         icon: "bar-chart-4",
-        data: { SUL: [102, 115, 120, 108, 125, 112, 128, 110, 118, 120], NORDESTE: [0,0,0,0,0,0,0,0,0,0], "CENTRO OESTE": [0,0,0,0,0,0,0,0,0,0] }
+        data: { SUL: [102, 115, 120, 108, 125, 112, 128, 110, 118, 120, 0, 0], NORDESTE: Array(12).fill(0), "CENTRO OESTE": Array(12).fill(0) }
     },
     painel_logcare: {
         title: "Painel LogCare — Ocorrências Operacionais de Viagem",
         desc: "Monitoramento de atrasos, início antecipado e rotas não sincronizadas no LogCare.",
         icon: "clock-5",
-        data: { SUL: [0,0,0,0,0,0,0,0,0,0], NORDESTE: [410, 430, 490, 460, 520, 480, 530, 470, 490, 484], "CENTRO OESTE": [0,0,0,0,0,0,0,0,0,0] }
+        data: { SUL: Array(12).fill(0), NORDESTE: [410, 430, 490, 460, 520, 480, 530, 470, 490, 484, 0, 0], "CENTRO OESTE": Array(12).fill(0) }
     }
 };
 
@@ -289,13 +282,13 @@ function generateConsolidatedData() {
     const consolidated = {
         title: "Visão Geral Consolidada",
         desc: "Soma executiva de todas as infrações e comportamentos de risco monitorados no sistema.",
-        data: { SUL: [0,0,0,0,0,0,0,0,0,0], NORDESTE: [0,0,0,0,0,0,0,0,0,0], "CENTRO OESTE": [0,0,0,0,0,0,0,0,0,0] }
+        data: { SUL: Array(12).fill(0), NORDESTE: Array(12).fill(0), "CENTRO OESTE": Array(12).fill(0) }
     };
     Object.keys(RAW_DATABASE).forEach(catKey => {
         if (catKey.startsWith('ranking_') || catKey === 'evolucao_multas' || catKey.startsWith('painel_')) return;
         const cat = RAW_DATABASE[catKey];
         ['SUL', 'NORDESTE', 'CENTRO OESTE'].forEach(reg => {
-            for (let i = 0; i < 10; i++) {
+            for (let i = 0; i < 12; i++) {
                 consolidated.data[reg][i] += cat.data[reg][i];
             }
         });
@@ -379,12 +372,7 @@ function handleFilterChange() {
 }
 
 function getActiveMonthIndices() {
-    const periodSelect = document.getElementById('periodSelect');
-    const period = periodSelect ? periodSelect.value : '2026-YTD';
-    if (period === '2026-Q3') return [6, 7, 8];
-    if (period === '2026-Q2') return [3, 4, 5];
-    if (period === '2026-Q1') return [0, 1, 2];
-    return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+    return [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 }
 
 function updateDashboard() {
@@ -402,18 +390,6 @@ function updateDashboard() {
         } else {
             yearFilterContainer.classList.add('hidden');
             yearFilterContainer.classList.remove('flex');
-        }
-    }
-
-    const regionFilterContainer = document.getElementById('regionFilterContainer');
-    if (regionFilterContainer) {
-        const allowedTabsForRegion = ['visao_geral', 'multiplos_excesso', 'excesso_velocidade', 'rodando_fora_horario'];
-        if (allowedTabsForRegion.includes(currentTab)) {
-            regionFilterContainer.classList.remove('hidden');
-            regionFilterContainer.classList.add('flex');
-        } else {
-            regionFilterContainer.classList.add('hidden');
-            regionFilterContainer.classList.remove('flex');
         }
     }
 
@@ -479,9 +455,9 @@ function updateDashboard() {
         regionKeys.forEach(reg => {
             const foundKey = Object.keys(activeGroup.data).find(k => k.trim().toUpperCase() === reg.trim().toUpperCase());
             if (foundKey) {
-                filteredData[reg] = monthIndices.map(idx => activeGroup.data[foundKey][idx]);
+                filteredData[reg] = monthIndices.map(idx => activeGroup.data[foundKey][idx] || 0);
             } else {
-                filteredData[reg] = [0,0,0,0,0,0,0,0,0,0];
+                filteredData[reg] = Array(12).fill(0);
             }
         });
     }
@@ -509,7 +485,7 @@ function updateKPIs(filteredData, regionKeys, activeMonths) {
 
     if (currentTab === 'evolucao_multas') {
         const yearSelect = document.getElementById('multasYearSelect');
-        const selectedYear = yearSelect ? yearSelect.value : '2026';
+        const selectedYear = yearSelect ? yearSelect.value : '2024';
         if (selectedYear === '2024') {
             totalVal = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0);
         } else if (selectedYear === '2025') {
@@ -550,7 +526,6 @@ function updateKPIs(filteredData, regionKeys, activeMonths) {
     if (highestValEl) highestValEl.innerText = `${highestVal >= 0 ? highestVal.toLocaleString('pt-BR') : 0} ev.`;
 }
 
-// PAINEL DE EVOLUÇÃO DE MULTAS ORIGINAL (PRESERVADO IDÊNTICO)
 function renderEvolucaoMultasPanel() {
     const yearSelect = document.getElementById('multasYearSelect');
     const topGrid = document.getElementById('multasTopGrid');
@@ -572,13 +547,13 @@ function renderEvolucaoMultasPanel() {
         topGrid.className = "grid grid-cols-1 md:grid-cols-3 gap-4";
         let htmlConsolidado = "";
         yearsToRender.forEach(yr => {
-            const yrCount = MULTAS_DATA[yr] ? MULTAS_DATA[yr].reduce((a, b) => a + b.count, 0) : 0;
-            const yrVal = MULTAS_DATA[yr] ? MULTAS_DATA[yr].reduce((a, b) => a + b.value, 0) : 0;
+            const yrCount = MULTAS_DATA[yr] ? Object.values(MULTAS_DATA[yr]).reduce((a, b) => a + b.count, 0) : 0;
+            const yrVal = MULTAS_DATA[yr] ? Object.values(MULTAS_DATA[yr]).reduce((a, b) => a + b.value, 0) : 0;
             htmlConsolidado += `
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 border-l-4 ${yearStyles[yr].border} shadow-sm flex flex-col justify-between">
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 border-l-4 ${yearStyles[yr] ? yearStyles[yr].border : 'border-l-blue-500'} shadow-sm flex flex-col justify-between">
                     <div class="flex justify-between items-center">
                         <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Consolidado ${yr}</span>
-                        <span class="text-xs font-bold px-2.5 py-1 rounded-full ${yearStyles[yr].badgeBg}">${yrCount} Infrações</span>
+                        <span class="text-xs font-bold px-2.5 py-1 rounded-full ${yearStyles[yr] ? yearStyles[yr].badgeBg : 'bg-blue-500/20 text-blue-300'}">${yrCount} Infrações</span>
                     </div>
                     <div class="mt-3 flex items-baseline justify-between">
                         <span class="text-2xl font-extrabold text-white">R$ ${yrVal.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</span>
@@ -647,8 +622,6 @@ function renderEvolucaoMultasPanel() {
 
 function updateDashboardKPIsForMultas(selectedYear) {
     let val = 0;
-    
-    // Soma corretamente com base no ano escolhido no seletor do topo
     if (selectedYear === '2024') {
         val = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0);
     } else if (selectedYear === '2025') {
@@ -656,13 +629,11 @@ function updateDashboardKPIsForMultas(selectedYear) {
     } else if (selectedYear === '2026') {
         val = MULTAS_MONTHLY_2026.reduce((acc, item) => acc + item.count, 0);
     } else {
-        // Se for "TODAS" (Consolidado Geral 24-26)
         val = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0) + 
               MULTAS_MONTHLY_2025.reduce((acc, item) => acc + item.count, 0) + 
               MULTAS_MONTHLY_2026.reduce((acc, item) => acc + item.count, 0);
     }
 
-    // Alvo exato do contador no topo ao lado do select de ano
     const headerCountEl = document.getElementById('multasHeaderCount');
     if (headerCountEl) {
         headerCountEl.innerText = `${val.toLocaleString('pt-BR')} Infrações`;
@@ -1002,9 +973,9 @@ function renderTable(fullCategoryData, monthIndices) {
         let htmlContent = `<td class="py-3.5 px-4 whitespace-nowrap"><span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold border ${badgeClass}">${reg}</span></td>`;
 
         let rowSum = 0;
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < 12; i++) {
             const isSelected = monthIndices.includes(i);
-            const val = fullMonthArray[i];
+            const val = fullMonthArray[i] || 0;
             if (isSelected) rowSum += val;
             htmlContent += `<td class="py-3.5 px-2 text-center ${isSelected ? 'text-slate-100 font-bold' : 'text-slate-600 opacity-40'}">${val}</td>`;
         }
@@ -1036,73 +1007,22 @@ function toggleMenu(menuId) {
     }
 }
 
-// ==========================================
-// FUNÇÃO DE VALIDAÇÃO CIRÚRGICA (SOLUÇÃO DEFINITIVA)
-// ==========================================
-function validarTelaEvolucaoMultas() {
-  const isMultas = (currentTab === "evolucao_multas");
-
-  // 1. Encontra os dois cards da imagem e faz sumir de vista com CSS puro
-  // Como eles estão dentro do grid superior da tela de multas, vamos ocultar o container deles ou os elementos específicos
-  const topGrid = document.getElementById("multasTopGrid");
-  if (topGrid) {
-    if (isMultas) {
-      // Oculta os dois cards que você marcou
-      topGrid.style.display = "none";
-    } else {
-      topGrid.style.display = "flex";
-    }
-  }
-
-  // 2. Atualiza e exibe a contagem no contador estático do topo (conforme a sua seta)
-  let headerCountEl = document.getElementById("multasHeaderCount");
-  if (!headerCountEl) {
-    const yearFilterContainer = document.getElementById("multasYearFilterContainer");
-    if (yearFilterContainer && yearFilterContainer.parentElement) {
-      let badgeDiv = document.createElement("div");
-      badgeDiv.id = "multasHeaderCountContainer";
-      badgeDiv.className = "flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold text-blue-400";
-      badgeDiv.innerHTML = `Total: <span id="multasHeaderCount" class="text-white ml-1">0 Infrações</span>`;
-      yearFilterContainer.parentElement.insertBefore(badgeDiv, yearFilterContainer);
-      headerCountEl = document.getElementById("multasHeaderCount");
-    }
-  }
-
-  const containerPai = document.getElementById("multasHeaderCountContainer");
-  if (containerPai) {
-    if (isMultas) {
-      containerPai.style.display = "flex";
-      const yearSelect = document.getElementById("multasYearSelect");
-      const selectedYear = yearSelect ? yearSelect.value : "2026";
-      
-      let val = 0;
-      if (selectedYear === "2024") val = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0);
-      else if (selectedYear === "2025") val = MULTAS_MONTHLY_2025.reduce((acc, item) => acc + item.count, 0);
-      else if (selectedYear === "2026") val = MULTAS_MONTHLY_2026.reduce((acc, item) => acc + item.count, 0);
-      else val = MULTAS_MONTHLY_2024.reduce((acc, item) => acc + item.count, 0) + MULTAS_MONTHLY_2025.reduce((acc, item) => acc + item.count, 0) + MULTAS_MONTHLY_2026.reduce((acc, item) => acc + item.count, 0);
-
-      if (headerCountEl) headerCountEl.innerText = `${val.toLocaleString("pt-BR")} Infrações`;
-    } else {
-      containerPai.style.display = "none";
-    }
-  }
-}
-
-
-// ==========================================
-// VALIDADOR INTELIGENTE DE TELAS (DISPLAY: NONE AUTOMÁTICO)
-// ==========================================
 function validarEOcultarCardsPorTela() {
-    // Pega todos os cards de KPI geral (Total do Período e Regional Crítica)
-    // Vamos identificá-los pelo container pai ou pelos títulos exatos deles na tela
     const generalKpis = document.getElementById("generalKpisContainer");
-    
     if (generalKpis) {
-        // Valida se estamos exatamente na tela de evolução de multas
         if (currentTab === "evolucao_multas") {
-            generalKpis.style.display = "none"; // Some com os cards da vista
+            generalKpis.style.display = "none";
         } else {
-            generalKpis.style.display = "grid"; // Mantém nas outras telas normalmente
+            generalKpis.style.display = "grid";
+        }
+    }
+
+    const topGrid = document.getElementById("multasTopGrid");
+    if (topGrid) {
+        if (currentTab === "evolucao_multas") {
+            topGrid.style.display = "grid";
+        } else {
+            topGrid.style.display = "grid";
         }
     }
 }
