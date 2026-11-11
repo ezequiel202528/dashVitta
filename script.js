@@ -229,7 +229,7 @@ const RAW_DATABASE = {
         data: {
             SUL:            [5, 2, 4, 1, 4, 0, 2, 0, 4, 0, 0, 0],
             NORDESTE:       [1, 0, 2, 1, 0, 0, 2, 0, 1, 0, 0, 0],
-            "CENTRO OESTE": [2, 1, 0, 0, 1, 1, 4, 2, 3, 1, 0, 0]
+            "CENTRO OESTE": [2, 1, 0, 0, 1, 1, 4, 2, 3, 1, 0, 0] 
         }
     },
     excesso_velocidade: {
@@ -381,6 +381,20 @@ function updateDashboard() {
     const selectedRegion = selectEl ? selectEl.value : 'TODAS';
     const monthIndices = getActiveMonthIndices();
     const activeMonths = monthIndices.map(i => MONTHS[i]);
+
+
+    const regionFilterContainer = document.getElementById('regionFilterContainer');
+    if (regionFilterContainer) {
+        const allowedTabsForRegion = ['visao_geral', 'multiplos_excesso', 'excesso_velocidade', 'rodando_fora_horario'];
+        if (allowedTabsForRegion.includes(currentTab)) {
+            regionFilterContainer.classList.remove('hidden');
+            regionFilterContainer.classList.add('flex');
+        } else {
+            regionFilterContainer.classList.add('hidden');
+            regionFilterContainer.classList.remove('flex');
+        }
+    }
+
 
     const yearFilterContainer = document.getElementById('multasYearFilterContainer');
     if (yearFilterContainer) {
@@ -981,7 +995,7 @@ function renderTable(fullCategoryData, monthIndices) {
         }
 
         htmlContent += `<td class="py-3.5 px-4 text-right font-extrabold text-white whitespace-nowrap">${rowSum.toLocaleString('pt-BR')}</td>`;
-        htmlContent += `<td class="py-3.5 px-4 text-center whitespace-nowrap"><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">Estável</span></td>`;
+        // htmlContent += `<td class="py-3.5 px-4 text-center whitespace-nowrap"><span class="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">Estável</span></td>`;
 
         tr.innerHTML = htmlContent;
         tbody.appendChild(tr);
